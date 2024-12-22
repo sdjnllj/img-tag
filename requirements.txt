@@ -1,0 +1,9 @@
+torch
+torchvision
+Pillow
+Flask
+flask-cors
+transformers
+numpy
+scikit-learn
+python-dotenv

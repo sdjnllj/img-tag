@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>建筑效果图展示</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <!-- 导航栏 -->
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between h-16">
+                <div class="flex">
+                    <div class="flex-shrink-0 flex items-center">
+                        <h1 class="text-xl font-bold">建筑效果图展示</h1>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    <input type="text" id="searchInput" 
+                           class="rounded-lg border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                           placeholder="搜索图片...">
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <!-- 类别过滤器 -->
+        <div class="mb-8">
+            <h2 class="text-lg font-semibold mb-4">类别筛选：</h2>
+            <div id="categories" class="flex flex-wrap gap-2">
+                <!-- 类别标签将通过 JavaScript 动态添加 -->
+            </div>
+        </div>
+
+        <!-- 图片网格 -->
+        <div id="imageGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <!-- 图片卡片将通过 JavaScript 动态添加 -->
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>
+    <script>
+        let currentCategory = '';
+        let currentSearch = '';
+
+        // 处理图片路径
+        function processImagePath(path) {
+            if (!path) return '';
+            // 移除开头的斜杠（如果存在）
+            path = path.replace(/^[/\\]+/, '');
+            // 将反斜杠替换为正斜杠
+            return path.replace(/\\/g, '/');
+        }
+
+        // 加载类别
+        async function loadCategories() {
+            try {
+                console.log('开始加载类别...');
+                const response = await fetch('/api/categories');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const categories = await response.json();
+                console.log('获取到的类别:', categories);
+                
+                const categoriesDiv = document.getElementById('categories');
+                categoriesDiv.innerHTML = `
+                    <button class="px-4 py-2 rounded-full bg-gray-200 hover:bg-gray-300 active:bg-gray-400 ${currentCategory === '' ? 'bg-indigo-500 text-white' : ''}"
+                            onclick="filterImages('')">
+                        全部
+                    </button>
+                `;
+                
+                categories.forEach(category => {
+                    const button = document.createElement('button');
+                    button.className = `px-4 py-2 rounded-full bg-gray-200 hover:bg-gray-300 active:bg-gray-400 ${currentCategory === category ? 'bg-indigo-500 text-white' : ''}`;
+                    button.textContent = category;
+                    button.onclick = () => filterImages(category);
+                    categoriesDiv.appendChild(button);
+                });
+            } catch (error) {
+                console.error('加载类别时出错:', error);
+            }
+        }
+
+        // 加载图片
+        async function loadImages() {
+            try {
+                console.log('开始加载图片...', { category: currentCategory, search: currentSearch });
+                const response = await fetch(`/api/images?category=${encodeURIComponent(currentCategory)}&search=${encodeURIComponent(currentSearch)}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const images = await response.json();
+                console.log('获取到的图片数据:', images);
+                
+                const imageGrid = document.getElementById('imageGrid');
+                imageGrid.innerHTML = '';
+                
+                if (!Array.isArray(images) || images.length === 0) {
+                    imageGrid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-8">没有找到匹配的图片</div>';
+                    return;
+                }
+                
+                images.forEach(image => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white rounded-lg shadow-md overflow-hidden';
+                    
+                    // 处理图片路径
+                    const imagePath = processImagePath(image.path);
+                    const imageUrl = `/images/${imagePath}`;
+                    console.log('处理图片:', {
+                        原始路径: image.path,
+                        处理后路径: imagePath,
+                        完整URL: imageUrl
+                    });
+                    
+                    // 处理类别
+                    const categories = image.categories || [];
+                    
+                    // 处理 AI 标签
+                    const aiTags = image.ai_tags || [];
+                    
+                    // 处理技术信息
+                    const technical = image.technical || {};
+                    
+                    card.innerHTML = `
+                        <div class="relative aspect-w-16 aspect-h-9">
+                            <a href="${imageUrl}" 
+                               data-fancybox="gallery"
+                               data-caption="${categories.join(', ')}">
+                                <img src="${imageUrl}" 
+                                     alt="${imagePath}"
+                                     class="w-full h-48 object-cover hover:opacity-75 transition-opacity"
+                                     onerror="console.error('图片加载失败:', '${imageUrl}'); this.onerror=null; this.src='/static/placeholder.png';">
+                            </a>
+                        </div>
+                        <div class="p-4">
+                            <div class="flex flex-wrap gap-2 mb-2">
+                                ${categories.map(cat => 
+                                    `<span class="px-2 py-1 text-xs rounded-full bg-gray-100">${cat}</span>`
+                                ).join('')}
+                            </div>
+                            <div class="text-sm text-gray-600 mb-2">
+                                <p>路径: ${imagePath}</p>
+                            </div>
+                            ${aiTags.length > 0 ? `
+                                <div class="mb-2">
+                                    <p class="text-sm font-semibold mb-1">AI 识别标签：</p>
+                                    <div class="flex flex-wrap gap-2">
+                                        ${aiTags.map(tag => 
+                                            `<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800" 
+                                                   title="置信度: ${Math.round((tag.probability || 0) * 100)}%">
+                                                ${tag.label}
+                                            </span>`
+                                        ).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                            <p class="text-sm text-gray-600">
+                                ${technical.width || 0}x${technical.height || 0}
+                            </p>
+                        </div>
+                    `;
+                    imageGrid.appendChild(card);
+                });
+
+                // 初始化 Fancybox
+                Fancybox.bind("[data-fancybox]", {
+                    // Fancybox options
+                });
+                
+            } catch (error) {
+                console.error('加载图片时出错:', error);
+                const imageGrid = document.getElementById('imageGrid');
+                imageGrid.innerHTML = '<div class="col-span-full text-center text-red-500 py-8">加载图片时出错</div>';
+            }
+        }
+
+        // 过滤图片
+        function filterImages(category) {
+            console.log('过滤图片:', category);
+            currentCategory = category;
+            loadImages();
+            
+            // 更新类别按钮状态
+            document.querySelectorAll('#categories button').forEach(button => {
+                if (button.textContent === category || (category === '' && button.textContent === '全部')) {
+                    button.classList.add('bg-indigo-500', 'text-white');
+                } else {
+                    button.classList.remove('bg-indigo-500', 'text-white');
+                }
+            });
+        }
+
+        // 搜索功能
+        const searchInput = document.getElementById('searchInput');
+        let searchTimeout;
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                console.log('搜索:', e.target.value);
+                currentSearch = e.target.value;
+                loadImages();
+            }, 300);
+        });
+
+        // 初始化
+        console.log('开始初始化...');
+        loadCategories();
+        loadImages();
+    </script>
+</body>
+</html>
